@@ -44,7 +44,6 @@ target_key = None
 target_message = None
 target_date = datetime(1990, 1, 1)
 generate_date = datetime.now()
-generate_date = datetime(2018, 11, 12)
 
 for key in reversed(mbox_desc.keys()):
     message = mbox_desc.get(key)
