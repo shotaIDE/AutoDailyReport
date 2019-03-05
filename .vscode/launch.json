@@ -9,10 +9,7 @@
             "type": "python",
             "request": "launch",
             "program": "${workspaceFolder}/mailtoreport.py",
-            "console": "integratedTerminal",
-            "args": [
-                "mail_settings.txt"
-            ]
+            "console": "integratedTerminal"
         }
     ]
 }

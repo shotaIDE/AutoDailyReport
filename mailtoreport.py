@@ -1,6 +1,5 @@
 # coding: utf-8
 
-import argparse
 import json
 import mailbox
 import re
@@ -9,11 +8,7 @@ from datetime import datetime, timedelta, timezone
 from email.header import decode_header
 from urllib.parse import quote
 
-parser = argparse.ArgumentParser()
-parser.add_argument('settings_path')
-arguments = parser.parse_args()
-
-SETTINGS_PATH = arguments.settings_path
+SETTINGS_PATH = 'mail_settings.txt'
 
 settings_raw = open(SETTINGS_PATH, 'r', encoding='utf-8').readlines()
 settings = [setting.replace('\n', '') for setting in settings_raw]
@@ -65,7 +60,7 @@ for key in reversed(mbox_desc.keys()):
 
 print(f'found yesterday report! ...#{key}: {subject}')
 
-if target_key == None:
+if target_key is None:
     exit()
 
 contents_str = None
@@ -90,6 +85,57 @@ contents = {
 part = 0
 field_iter = ''
 
+def parse_tasks_in_line(line: str, category: dict) -> None:
+    matched = RE_CATEGORY.match(line)
+    if matched:
+        category_title = matched.groups()[0]
+        category.append({
+            'title': category_title,
+            'tasks': [],
+        })
+        return
+
+    matched = RE_TASK.match(line)
+    if matched:
+        category[-1]['tasks'].append({
+            'progress': matched.groups()[0],
+            'length': float(matched.groups()[1]),
+            'title': matched.groups()[2],
+            'sub_tasks': [],
+        })
+        return
+
+    matched = RE_TASK_SINGLE.match(line)
+    if matched:
+        category[-1]['tasks'].append({
+            'length': float(matched.groups()[0]),
+            'title': matched.groups()[1],
+            'sub_tasks': [],
+        })
+        return
+
+    matched = RE_TASK_TMP.match(line)
+    if matched:
+        category[-1]['tasks'].append({
+            'progress': matched.groups()[0],
+            'title': matched.groups()[1],
+            'sub_tasks': [],
+        })
+        return
+
+    matched = RE_TASK_TMP2.match(line)
+    if matched:
+        category[-1]['tasks'].append({
+            'progress': matched.groups()[0],
+            'title': matched.groups()[1],
+            'sub_tasks': [],
+        })
+        return
+
+    if line.startswith('・'):
+        category[-1]['tasks'][-1]['sub_tasks'].append(line[1:])
+        return
+
 for line in contents_list:
     line = str.strip(line.replace('\n', ''))
 
@@ -111,125 +157,18 @@ for line in contents_list:
     if field_iter != 'future':
         continue
 
-    matched = RE_CATEGORY.match(line)
-    if matched:
-        category_title = matched.groups()[0]
-        contents[field_iter].append({
-            'title': category_title,
-            'tasks': []
-        })
-        continue
-
-    matched = RE_TASK.match(line)
-    if matched:
-        contents[field_iter][-1]['tasks'].append({
-            'progress': matched.groups()[0],
-            'length': float(matched.groups()[1]),
-            'title': matched.groups()[2],
-            'sub_tasks': []
-        })
-        continue
-
-    matched = RE_TASK_SINGLE.match(line)
-    if matched:
-        contents[field_iter][-1]['tasks'].append({
-            'progress': '',
-            'length': matched.groups()[0],
-            'title': matched.groups()[1],
-            'sub_tasks': []
-        })
-        continue
-
-    matched = RE_TASK_TMP.match(line)
-    if matched:
-        print(line)
-        print(contents)
-        contents[field_iter][-1]['tasks'].append({
-            'progress': matched.groups()[0],
-            'length': '',
-            'title': matched.groups()[1],
-            'sub_tasks': []
-        })
-        continue
-
-    matched = RE_TASK_TMP2.match(line)
-    if matched:
-        contents[field_iter][-1]['tasks'].append({
-            'progress': matched.groups()[0],
-            'length': '',
-            'title': matched.groups()[1],
-            'sub_tasks': []
-        })
-        continue
-
-    if line.startswith('・'):
-        contents[field_iter][-1]['tasks'][-1]['sub_tasks'].append(line[1:])
-        continue
+    parse_tasks_in_line(line, contents[field_iter])
 
 with open('today_tasks.txt', 'r', encoding='utf-8') as f:
     today_task_list = f.readlines()
 
-field_iter = 'today'
 for line in today_task_list:
     line = str.strip(line.replace('\n', ''))
 
     if line == '':
         continue
 
-    matched = RE_CATEGORY.match(line)
-    if matched:
-        category_title = matched.groups()[0]
-        contents[field_iter].append({
-            'title': category_title,
-            'tasks': []
-        })
-        continue
-
-    matched = RE_TASK.match(line)
-    if matched:
-        contents[field_iter][-1]['tasks'].append({
-            'progress': matched.groups()[0],
-            'length': float(matched.groups()[1]),
-            'title': matched.groups()[2],
-            'sub_tasks': []
-        })
-        continue
-
-    matched = RE_TASK_SINGLE.match(line)
-    if matched:
-        contents[field_iter][-1]['tasks'].append({
-            'progress': '',
-            'length': matched.groups()[0],
-            'title': matched.groups()[1],
-            'sub_tasks': []
-        })
-        continue
-
-    matched = RE_TASK_TMP.match(line)
-    if matched:
-        print(line)
-        print(contents)
-        contents[field_iter][-1]['tasks'].append({
-            'progress': matched.groups()[0],
-            'length': '',
-            'title': matched.groups()[1],
-            'sub_tasks': []
-        })
-        continue
-
-    matched = RE_TASK_TMP2.match(line)
-    if matched:
-        contents[field_iter][-1]['tasks'].append({
-            'progress': matched.groups()[0],
-            'length': '',
-            'title': matched.groups()[1],
-            'sub_tasks': []
-        })
-        continue
-
-    if line.startswith('・'):
-        contents[field_iter][-1]['tasks'][-1]['sub_tasks'].append(line[1:])
-        continue
+    parse_tasks_in_line(line, contents['today'])
 
 mail_recipients = MAIL_TO
 
@@ -258,7 +197,7 @@ for category in contents['today']:
         if 'length' in task:
             mail_body += f'[{task["length"]:.2f}h]'
         mail_body += f' {task["title"]:}\n'
-        
+
         for sub_task in task['sub_tasks']:
             mail_body += f'・{sub_task}\n'
 
@@ -269,6 +208,18 @@ mail_body += '''========================
 ======================== 
 '''
 
+for id, category in enumerate(contents['today']):
+    tasks = [x for x in category['tasks'] if 'progress' in x]
+
+    if len(tasks) == 0:
+        del contents['today'][id]
+        continue
+
+    category = {
+        'title': category['title'],
+        'tasks': tasks,
+    }
+
 for category in contents['today']:
     mail_body += f'【{category["title"]}】\n'
 
@@ -276,7 +227,7 @@ for category in contents['today']:
         if 'progress' in task and task['progress'] != '':
             mail_body += f'[{task["progress"]}]'
         mail_body += f' {task["title"]}\n'
-        
+
         for sub_task in task['sub_tasks']:
             mail_body += f'・{sub_task}\n'
 
@@ -294,7 +245,7 @@ for category in contents['future']:
         if 'progress' in task and task['progress'] != '':
             mail_body += f'[{task["progress"]}]'
         mail_body += f' {task["title"]}\n'
-        
+
         for sub_task in task['sub_tasks']:
             mail_body += f'・{sub_task}\n'
 

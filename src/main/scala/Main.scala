@@ -144,6 +144,7 @@ object Main extends App {
       new TrelloTask(
         section = (item \ "daily_report" \ "section").as[String],
         title = (item \ "daily_report" \ "title").as[String],
+        isSingle = (item \ "is_single").as[Boolean],
         spent = spentFixed,
         actions = tasks,
       )
@@ -153,6 +154,7 @@ object Main extends App {
   val offsetItemList = (itemList :+ new TrelloTask(
     section = "その他",
     title = "日報作成、工数入力",
+    isSingle = true,
     spent = 0.25,
     actions = null,
   )) ::: (currentDateTime.getDayOfWeek match {
@@ -160,18 +162,21 @@ object Main extends App {
       new TrelloTask(
         section = "その他",
         title = "本社朝礼",
+        isSingle = true,
         spent = 0.25,
         actions = null,
       ),
       new TrelloTask(
         section = "その他",
         title = "CBU開発定例",
+        isSingle = true,
         spent = 0.5,
         actions = null,
       ),
       new TrelloTask(
         section = "その他",
         title = "課定例",
+        isSingle = true,
         spent = 0.5,
         actions = null,
       )
@@ -191,32 +196,34 @@ object Main extends App {
 
   val sortedItemList = offsetItemList.sortBy(s => -s.spent)
   val fixedItemList = sortedItemList.zipWithIndex.map {
-    case (item, index) => index match {
+    case (trelloTask, index) => index match {
       case 0 => new TrelloTask(
-        section = item.section,
-        title = item.title,
-        spent = ((item.spent + deltaSumSpent) / 0.25).toInt * 0.25,
-        actions = item.actions,
+        section = trelloTask.section,
+        title = trelloTask.title,
+        isSingle = trelloTask.isSingle,
+        spent = ((trelloTask.spent + deltaSumSpent) / 0.25).toInt * 0.25,
+        actions = trelloTask.actions,
       )
-      case _ => item
+      case _ => trelloTask
     }
   }
 
   val sectionList = dict.value.map {
-    item => (item \ "daily_report" \ "section").as[String]
+    section => (section \ "daily_report" \ "section").as[String]
   }.toSet.toList
   val buildItemList = sectionList.map {
-    section =>
+    sectionName =>
       new Section(
-        name = section,
+        name = sectionName,
         items = fixedItemList.filter {
-          item => item.section == section
+          item => item.section == sectionName
         }.map {
-          item =>
+          trelloTask =>
             new ReportTask(
-              title = item.title,
-              spent = item.spent,
-              actions = item.actions,
+              title = trelloTask.title,
+              isSingle = trelloTask.isSingle,
+              spent = trelloTask.spent,
+              actions = trelloTask.actions,
             )
         }.filter {
           item => item.spent != 0.0
@@ -229,7 +236,12 @@ object Main extends App {
   val mailContents = buildItemList.foldLeft("")((x, y) => {
     x + s"【${y.name}】\n" +
       y.items.foldLeft("")((z, w) => {
-        z + f"[中][${w.spent}%.2fh] ${w.title}\n" +
+        z +
+          (if (w.isSingle) {
+            f"[${w.spent}%.2fh] ${w.title}\n"
+          } else {
+            f"[中][${w.spent}%.2fh] ${w.title}\n"
+          }) +
           (w.actions match {
             case actionsList: List[String] =>
               actionsList.foldLeft("")((a, b) => s"$a・$b\n")
