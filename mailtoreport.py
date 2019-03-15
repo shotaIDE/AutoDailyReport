@@ -4,86 +4,16 @@ import json
 import mailbox
 import re
 import webbrowser
-from datetime import datetime, timedelta, timezone
+from datetime import date, datetime
 from email.header import decode_header
+from typing import NoReturn, Optional
 from urllib.parse import quote
-
-SETTINGS_PATH = 'mail_settings.txt'
-
-settings_raw = open(SETTINGS_PATH, 'r', encoding='utf-8').readlines()
-settings = [setting.replace('\n', '') for setting in settings_raw]
-MAILBOX_PATH = settings[0]
-MAIL_TO = settings[1]
-NAME_IN_MAIL_SUBJECT = settings[2]
-
-line_iter = 3
-max_lines = len(settings)
-if settings[line_iter] != '===MailHeaderStart===':
-    raise Exception
-
-line_iter += 1
-mail_body_header = ''
-while line_iter < max_lines and settings[line_iter] != '===MailHeaderEnd===':
-    mail_body_header += settings[line_iter] + '\n'
-    line_iter += 1
-
-mbox_desc = mailbox.mbox(MAILBOX_PATH)
 
 RE_CATEGORY = re.compile(r"【(.*)】.*")
 RE_TASK = re.compile(r"\[(.+)\]\[([0-9]+\.[0-9][0-9])h\] (.*)")
 RE_TASK_SINGLE = re.compile(r"\[([0-9]+\.[0-9][0-9])h\] (.*)")
 RE_TASK_TMP = re.compile(r"\[(.+)\]\[\] (.*)")
 RE_TASK_TMP2 = re.compile(r"\[(.+)\] (.*)")
-
-target_key = None
-target_message = None
-target_date = datetime(1990, 1, 1)
-generate_date = datetime.now()
-
-for key in reversed(mbox_desc.keys()):
-    message = mbox_desc.get(key)
-
-    subject = ''
-    for subject_b, encode in decode_header(message['Subject']):
-        if encode == None:
-            subject += subject_b.decode('ascii', 'ignore')
-            continue
-        subject += subject_b.decode(encode, 'ignore')
-
-    send_datetime = datetime.strptime(subject[4:14], '%Y-%m-%d')
-
-    if (send_datetime > target_date):
-        target_date = send_datetime
-        target_key = key
-        target_message = message
-        break
-
-print(f'found yesterday report! ...#{key}: {subject}')
-
-if target_key is None:
-    exit()
-
-contents_str = None
-
-for part in message.walk():
-    if part.get_content_type() != 'text/plain':
-        continue
-
-    charset = part.get_content_charset()
-    if charset:
-        contents_str = part.get_payload(decode=True).decode(charset, 'ignore')
-
-if contents_str == None:
-    exit()
-
-contents_list = contents_str.splitlines()
-contents = {
-    'today': [],
-    'tomorrow': [],
-    'future': []
-}
-part = 0
-field_iter = ''
 
 def parse_tasks_in_line(line: str, category: dict) -> None:
     matched = RE_CATEGORY.match(line)
@@ -136,124 +66,221 @@ def parse_tasks_in_line(line: str, category: dict) -> None:
         category[-1]['tasks'][-1]['sub_tasks'].append(line[1:])
         return
 
-for line in contents_list:
-    line = str.strip(line.replace('\n', ''))
+class DailyReportMailBox():
+    def __init__(self, mbox_path: str) -> NoReturn:
+        self.mbox_list = mailbox.mbox(mbox_path)
 
-    if line == '':
-        continue
+    def get_daily_report(self, target_date: date) -> Optional[dict]:
+        contents_str = self._get_daily_report_str(target_date=target_date)
 
-    if line.startswith('='):
-        part += 1
-        if part == 2:
-            field_iter = 'today'
-        elif part == 4:
-            field_iter = 'tomorrow'
-        elif part == 6:
-            field_iter = 'future'
-        else:
-            field_iter = ''
-        continue
+        contents_list = contents_str.splitlines()
+        contents = {
+            'today': [],
+            'tomorrow': [],
+            'future': []
+        }
+        part = 0
+        field_iter = ''
 
-    if field_iter != 'future':
-        continue
+        for line in contents_list:
+            line = str.strip(line.replace('\n', ''))
 
-    parse_tasks_in_line(line, contents[field_iter])
+            if line == '':
+                continue
 
-with open('today_tasks.txt', 'r', encoding='utf-8') as f:
-    today_task_list = f.readlines()
+            if line.startswith('='):
+                part += 1
+                if part == 2:
+                    field_iter = 'today'
+                elif part == 4:
+                    field_iter = 'tomorrow'
+                elif part == 6:
+                    field_iter = 'future'
+                else:
+                    field_iter = ''
+                continue
 
-for line in today_task_list:
-    line = str.strip(line.replace('\n', ''))
+            if field_iter != 'future':
+                continue
 
-    if line == '':
-        continue
+            parse_tasks_in_line(line, contents[field_iter])
 
-    parse_tasks_in_line(line, contents['today'])
+        return contents
 
-mail_recipients = MAIL_TO
+    def _get_daily_report_str(self, target_date: date) -> Optional[str]:
+        contents_str = None
 
-mail_subject = f'[日報]{generate_date.strftime("%Y-%m-%d")}:{NAME_IN_MAIL_SUBJECT}'
+        raw_daily_report = self._get_raw_daily_report(target_date=target_date)
 
-mail_body = mail_body_header
+        if raw_daily_report is None:
+            return
 
-month = generate_date.strftime('%m')
-day = generate_date.strftime('%d')
-wday_iter = int(generate_date.strftime('%w'))
-WDAY_STR_LIST = ['日', '月', '火', '水', '木', '金', '土']
-wday_str = WDAY_STR_LIST[wday_iter]
-mail_body += f'{month}月{day}日({wday_str})\n\n'
+        for part in raw_daily_report.walk():
+            if part.get_content_type() != 'text/plain':
+                continue
 
-mail_body += '''========================
-今日の作業
-======================== 
-'''
+            charset = part.get_content_charset()
+            if charset:
+                contents_str = part.get_payload(decode=True).decode(charset, 'ignore')
 
-for category in contents['today']:
-    mail_body += f'【{category["title"]}】\n'
+        if contents_str is None:
+            return
 
-    for task in category['tasks']:
-        if 'progress' in task and task['progress'] != '':
-            mail_body += f'[{task["progress"]}]'
-        if 'length' in task:
-            mail_body += f'[{task["length"]:.2f}h]'
-        mail_body += f' {task["title"]:}\n'
+        return contents_str
 
-        for sub_task in task['sub_tasks']:
-            mail_body += f'・{sub_task}\n'
+    def _get_raw_daily_report(self, target_date: date):
+        target_key = None
+        target_message = None
+        target_date = datetime(1990, 1, 1).date()
+        for key in reversed(self.mbox_list.keys()):
+            message = self.mbox_list.get(key)
 
-    mail_body += '\n'
+            subject = ''
+            for subject_b, encode in decode_header(message['Subject']):
+                if encode == None:
+                    subject += subject_b.decode('ascii', 'ignore')
+                    continue
+                subject += subject_b.decode(encode, 'ignore')
 
-mail_body += '''========================
-翌営業日の作業
-======================== 
-'''
+            send_datetime = datetime.strptime(subject[4:14], '%Y-%m-%d').date()
 
-for id, category in enumerate(contents['today']):
-    tasks = [x for x in category['tasks'] if 'progress' in x]
+            if (send_datetime > target_date):
+                target_date = send_datetime
+                target_key = key
+                target_message = message
+                break
 
-    if len(tasks) == 0:
-        del contents['today'][id]
-        continue
+        if target_key is None:
+            return
 
-    category = {
-        'title': category['title'],
-        'tasks': tasks,
-    }
+        return target_message
 
-for category in contents['today']:
-    mail_body += f'【{category["title"]}】\n'
+def main():
+    SETTINGS_PATH = 'mail_settings.txt'
 
-    for task in category['tasks']:
-        if 'progress' in task and task['progress'] != '':
-            mail_body += f'[{task["progress"]}]'
-        mail_body += f' {task["title"]}\n'
+    settings_raw = open(SETTINGS_PATH, 'r', encoding='utf-8').readlines()
+    settings = [setting.replace('\n', '') for setting in settings_raw]
+    MAILBOX_PATH = settings[0]
+    MAIL_TO = settings[1]
+    NAME_IN_MAIL_SUBJECT = settings[2]
 
-        for sub_task in task['sub_tasks']:
-            mail_body += f'・{sub_task}\n'
+    line_iter = 3
+    max_lines = len(settings)
+    if settings[line_iter] != '===MailHeaderStart===':
+        raise Exception
 
-    mail_body += '\n'
+    line_iter += 1
+    mail_body_header = ''
+    while line_iter < max_lines and settings[line_iter] != '===MailHeaderEnd===':
+        mail_body_header += settings[line_iter] + '\n'
+        line_iter += 1
 
-mail_body += '''========================
-タスク
-======================== 
-'''
+    daily_report = DailyReportMailBox(MAILBOX_PATH)
 
-for category in contents['future']:
-    mail_body += f'【{category["title"]}】\n'
+    generate_date = datetime.now().date()
+    contents = daily_report.get_daily_report(target_date=generate_date)
 
-    for task in category['tasks']:
-        if 'progress' in task and task['progress'] != '':
-            mail_body += f'[{task["progress"]}]'
-        mail_body += f' {task["title"]}\n'
+    if contents is None:
+        exit()
 
-        for sub_task in task['sub_tasks']:
-            mail_body += f'・{sub_task}\n'
+    with open('today_tasks.txt', 'r', encoding='utf-8') as f:
+        today_task_list = f.readlines()
 
-    mail_body += '\n'
+    for line in today_task_list:
+        line = str.strip(line.replace('\n', ''))
 
-scheme = 'mailto:{:}?subject={:}&body={:}'.format(
-    quote(mail_recipients),
-    quote(mail_subject),
-    quote(mail_body)
-)
-webbrowser.open(scheme)
+        if line == '':
+            continue
+
+        parse_tasks_in_line(line, contents['today'])
+
+    mail_recipients = MAIL_TO
+
+    mail_subject = f'[日報]{generate_date.strftime("%Y-%m-%d")}:{NAME_IN_MAIL_SUBJECT}'
+
+    mail_body = mail_body_header
+
+    month = generate_date.strftime('%m')
+    day = generate_date.strftime('%d')
+    wday_iter = int(generate_date.strftime('%w'))
+    WDAY_STR_LIST = ['日', '月', '火', '水', '木', '金', '土']
+    wday_str = WDAY_STR_LIST[wday_iter]
+    mail_body += f'{month}月{day}日({wday_str})\n\n'
+
+    mail_body += '''========================
+    今日の作業
+    ======================== 
+    '''
+
+    for category in contents['today']:
+        mail_body += f'【{category["title"]}】\n'
+
+        for task in category['tasks']:
+            if 'progress' in task and task['progress'] != '':
+                mail_body += f'[{task["progress"]}]'
+            if 'length' in task:
+                mail_body += f'[{task["length"]:.2f}h]'
+            mail_body += f' {task["title"]:}\n'
+
+            for sub_task in task['sub_tasks']:
+                mail_body += f'・{sub_task}\n'
+
+        mail_body += '\n'
+
+    mail_body += '''========================
+    翌営業日の作業
+    ======================== 
+    '''
+
+    for id, category in enumerate(contents['today']):
+        tasks = [x for x in category['tasks'] if 'progress' in x]
+
+        if len(tasks) == 0:
+            del contents['today'][id]
+            continue
+
+        category = {
+            'title': category['title'],
+            'tasks': tasks,
+        }
+
+    for category in contents['today']:
+        mail_body += f'【{category["title"]}】\n'
+
+        for task in category['tasks']:
+            if 'progress' in task and task['progress'] != '':
+                mail_body += f'[{task["progress"]}]'
+            mail_body += f' {task["title"]}\n'
+
+            for sub_task in task['sub_tasks']:
+                mail_body += f'・{sub_task}\n'
+
+        mail_body += '\n'
+
+    mail_body += '''========================
+    タスク
+    ======================== 
+    '''
+
+    for category in contents['future']:
+        mail_body += f'【{category["title"]}】\n'
+
+        for task in category['tasks']:
+            if 'progress' in task and task['progress'] != '':
+                mail_body += f'[{task["progress"]}]'
+            mail_body += f' {task["title"]}\n'
+
+            for sub_task in task['sub_tasks']:
+                mail_body += f'・{sub_task}\n'
+
+        mail_body += '\n'
+
+    scheme = 'mailto:{:}?subject={:}&body={:}'.format(
+        quote(mail_recipients),
+        quote(mail_subject),
+        quote(mail_body)
+    )
+    webbrowser.open(scheme)
+
+if __name__ == '__main__':
+    main()
