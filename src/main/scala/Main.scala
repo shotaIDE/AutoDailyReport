@@ -59,7 +59,10 @@ object Main extends App {
     Json.parse(actionsString).as[JsArray]
   }
 
-  val TRELLO_COMMENT_BY_PLUS = new Regex("""plus! (\d+\.\d+)/(\d+\.\d+) (.*)""", "spent", "estimated", "comment")
+  val TRELLO_COMMENT_BY_PLUS = new Regex(
+    """plus! (\d+(\.\d+)?)/(\d+(\.\d+)?) (.*)""",
+    "spentMin", "spentMilli", "estimatedMin", "estimatedMilliMin", "comment"
+  )
 
   def getFilteredActions(actions: JsArray, boardName: String, currentDateString: String): List[TrelloComment] = {
     actions.value.filter {
@@ -73,7 +76,7 @@ object Main extends App {
 
         new TrelloComment(
           title = (action \ "data" \ "card" \ "name").as[String],
-          spent = matched.group("spent").toFloat,
+          spent = matched.group("spentMin").toFloat,
           task = matched.group("comment"),
         )
       }
