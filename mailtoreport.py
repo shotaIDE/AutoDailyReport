@@ -1,6 +1,5 @@
 # coding: utf-8
 
-import json
 import mailbox
 import re
 import webbrowser
@@ -70,7 +69,7 @@ class DailyReportMailBox():
     def __init__(self, mbox_path: str) -> NoReturn:
         self.mbox_list = mailbox.mbox(mbox_path)
 
-    def get_daily_report(self, target_date: date) -> Optional[dict]:
+    def get_daily_report(self, target_date: Optional[date] = None) -> Optional[dict]:
         contents_str = self._get_daily_report_str(target_date=target_date)
 
         contents_list = contents_str.splitlines()
@@ -100,7 +99,7 @@ class DailyReportMailBox():
                     field_iter = ''
                 continue
 
-            if field_iter != 'future':
+            if field_iter == '':
                 continue
 
             parse_tasks_in_line(line, contents[field_iter])
@@ -131,7 +130,6 @@ class DailyReportMailBox():
     def _get_raw_daily_report(self, target_date: date):
         target_key = None
         target_message = None
-        target_date = datetime(1990, 1, 1).date()
         for key in reversed(self.mbox_list.keys()):
             message = self.mbox_list.get(key)
 
@@ -144,8 +142,7 @@ class DailyReportMailBox():
 
             send_datetime = datetime.strptime(subject[4:14], '%Y-%m-%d').date()
 
-            if (send_datetime > target_date):
-                target_date = send_datetime
+            if target_date is None or send_datetime == target_date:
                 target_key = key
                 target_message = message
                 break
@@ -178,7 +175,8 @@ def main():
     daily_report = DailyReportMailBox(MAILBOX_PATH)
 
     generate_date = datetime.now().date()
-    contents = daily_report.get_daily_report(target_date=generate_date)
+    contents = daily_report.get_daily_report()
+    contents['today'] = []
 
     if contents is None:
         exit()

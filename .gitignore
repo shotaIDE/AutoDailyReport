@@ -100,6 +100,9 @@ project/plugins/project/
 
 # End of https://www.gitignore.io/api/scala,sbt,intellij
 
+__pycache__/
+
+/.env
 /*.jar
 /*.json
 /*.txt

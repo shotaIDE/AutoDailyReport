@@ -10,6 +10,13 @@
             "request": "launch",
             "program": "${workspaceFolder}/mailtoreport.py",
             "console": "integratedTerminal"
+        },
+        {
+            "name": "Python: Run Mail To Hi-Core",
+            "type": "python",
+            "request": "launch",
+            "program": "${workspaceFolder}/mailtohicore.py",
+            "console": "integratedTerminal"
         }
     ]
 }
