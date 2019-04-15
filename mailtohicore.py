@@ -1,5 +1,6 @@
 # coding: utf-8
 
+import copy
 import json
 import os
 import time
@@ -8,6 +9,7 @@ from datetime import datetime, timedelta
 
 from selenium import webdriver
 from selenium.webdriver.support.ui import Select
+from selenium.common.exceptions import NoSuchElementException
 
 from mailtoreport import DailyReportMailBox
 
@@ -110,8 +112,14 @@ while str(input('Please go to page you want to input...[Y/n]')).lower() == 'y':
     work_inputs = []
     for input_row in input_rows:
         project = input_row.find_element_by_xpath('./td[2]').text
-        process_select = Select(input_row.find_element_by_xpath('./td[3]/select'))
-        process = process_select.first_selected_option.text
+
+        try:
+            process_select = Select(input_row.find_element_by_xpath('./td[3]/select'))
+            process = process_select.first_selected_option.text
+        except NoSuchElementException:
+            process_text = input_row.find_element_by_xpath('./td[3]')
+            process = process_text.text
+
         work_inputs.append({
             'project': project,
             'process': process,
@@ -121,7 +129,7 @@ while str(input('Please go to page you want to input...[Y/n]')).lower() == 'y':
     for wday_iter in range(7):
         target_date = start_date + timedelta(days=wday_iter)
 
-        works_to_input = hicore_works.deepcopy()
+        works_to_input = copy.deepcopy(hicore_works)
         num_inputs = 0
         for (work, input_row) in zip(work_inputs, input_rows):
             project = work['project']
@@ -144,12 +152,16 @@ while str(input('Please go to page you want to input...[Y/n]')).lower() == 'y':
 
         if num_inputs == 0:
             # 入力完了・必要なし
-            print(f'Not need to input in #{target_date}')
+            print(f'Not need to input at #{target_date}')
             continue
 
         sum_work_actual = float(input_table_rows[-1].find_element_by_xpath(f'./td[{2 + wday_iter}]').text)
 
         work_raw = daily_report.get_daily_report(target_date=target_date)
+        if work_raw is None:
+            print(f'[INFO] Ignored for no daily report at #{target_date}')
+            continue
+
         work_actual = work_raw['today']
 
         for category in work_actual:

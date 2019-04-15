@@ -72,6 +72,9 @@ class DailyReportMailBox():
     def get_daily_report(self, target_date: Optional[date] = None) -> Optional[dict]:
         contents_str = self._get_daily_report_str(target_date=target_date)
 
+        if contents_str is None:
+            return
+
         contents_list = contents_str.splitlines()
         contents = {
             'today': [],
