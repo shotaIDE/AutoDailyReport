@@ -128,7 +128,8 @@ class DailyReportMailBox():
         if contents_str is None:
             return
 
-        return contents_str
+        appended_contents_str = contents_str.replace(' - \n', ' - ')  # FIXME: 勝手に改行されて読み込まれるから改行削除
+        return appended_contents_str
 
     def _get_raw_daily_report(self, target_date: date):
         target_key = None
