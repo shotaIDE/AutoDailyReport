@@ -17,6 +17,13 @@
             "request": "launch",
             "program": "${workspaceFolder}/mailtohicore.py",
             "console": "integratedTerminal"
+        },
+        {
+            "name": "Python: Run Overtime To Hi-Core",
+            "type": "python",
+            "request": "launch",
+            "program": "${workspaceFolder}/overtimetohicore.py",
+            "console": "integratedTerminal"
         }
     ]
 }
