@@ -154,38 +154,13 @@ object Main extends App {
     }
   }.toList
 
-  val offsetItemList = (itemList :+ new TrelloTask(
-    section = "その他",
-    title = "日報作成、工数入力",
-    isSingle = true,
-    spent = 0.25,
-    actions = null,
-  )) ::: (currentDateTime.getDayOfWeek match {
-    case 1 => List[TrelloTask](
-      new TrelloTask(
-        section = "その他",
-        title = "本社朝礼",
-        isSingle = true,
-        spent = 0.25,
-        actions = null,
-      ),
-      new TrelloTask(
-        section = "その他",
-        title = "CBU開発定例",
-        isSingle = true,
-        spent = 0.5,
-        actions = null,
-      ),
-      new TrelloTask(
-        section = "その他",
-        title = "課定例",
-        isSingle = true,
-        spent = 0.5,
-        actions = null,
-      )
-    )
-    case _ => Nil
-  })
+  val offsetItemList = itemList.:+(new TrelloTask(
+      section = "その他",
+      title = "日報作成、工数入力",
+      isSingle = true,
+      spent = 0.25,
+      actions = null,
+    ))
 
   val sumSpentActual = offsetItemList.foldLeft(0.0)((x, y) => x + y.spent)
   val startDateTime = currentDateTime.withTime(10, 0, 0, 0)
