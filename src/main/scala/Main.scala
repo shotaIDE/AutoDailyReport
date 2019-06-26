@@ -201,7 +201,12 @@ object Main extends App {
               title = trelloTask.title,
               isSingle = trelloTask.isSingle,
               spent = trelloTask.spent,
-              actions = trelloTask.actions,
+              actions = trelloTask.actions match {
+                case actionList: List[String] => actionList.filter {
+                  action => action.nonEmpty
+                }
+                case _ => Nil
+              }
             )
         }.filter {
           item => item.spent != 0.0
