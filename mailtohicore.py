@@ -202,15 +202,24 @@ while str(input('Please go to page you want to input...[Y/n]')).lower() == 'y':
             excess = sum_work_reported - sum_work_actual
             works_to_input[project_of_max][process_of_max]['length'] -= excess
 
+        required_forms = []
         for project, processes in works_to_input.items():
             for process, work in processes.items():
                 length = work['length']
                 if length == 0.0:
                     continue
 
+                if 'input' not in work:
+                    required_forms.append(f'{project} / {process}')
+                    continue
                 length_input = work['input']
                 length_input.clear()
                 input_word = f'{length}'
                 length_input.send_keys(input_word)
+
+        if len(required_forms) > 0:
+            for required_form in required_forms:
+                print(f'[ERROR] Please make a from: {required_form}')
+            break
 
 # TODO: 申請
