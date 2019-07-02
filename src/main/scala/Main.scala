@@ -155,12 +155,12 @@ object Main extends App {
   }.toList
 
   val offsetItemList = itemList.:+(new TrelloTask(
-      section = "その他",
-      title = "日報作成、工数入力",
-      isSingle = true,
-      spent = 0.25,
-      actions = null,
-    ))
+    section = "その他",
+    title = "日報作成、工数入力",
+    isSingle = true,
+    spent = 0.25,
+    actions = null,
+  ))
 
   val sumSpentActual = offsetItemList.foldLeft(0.0)((x, y) => x + y.spent)
   val startDateTime = currentDateTime.withTime(10, 0, 0, 0)
