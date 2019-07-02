@@ -9,6 +9,7 @@ import org.joda.time.{DateTime, Duration}
 import play.api.libs.json._
 
 import scala.io.Source
+import scala.util.{Success, Try}
 import scala.util.matching.Regex
 
 object Main extends App {
@@ -83,7 +84,7 @@ object Main extends App {
     }.toList
   }
 
-  def getConverter(filePath: String): JsArray = {
+  def getConverter(filePath: String): List[UserDefinedDictionary] = {
     val dictFile = Source.fromFile(filePath, ENCODING)
     val dictStringBuffer = new StringBuffer
     try {
@@ -95,7 +96,25 @@ object Main extends App {
       dictFile.close
     }
     val dictString = dictStringBuffer.toString
-    Json.parse(dictString).as[JsArray]
+    val dictArray = Json.parse(dictString).as[JsArray]
+    dictArray.value.map {
+      item => {
+        val trelloTitles = Try {
+          (item \ "trello" \ "title").as[List[String]]
+        } match {
+          case titles: Success[List[String]] => titles.value
+          case _ => List((item \ "trello" \ "title").as[String])
+        }
+        new UserDefinedDictionary(
+          trelloTitles = trelloTitles,
+          dailyReportSection = (item \ "daily_report" \ "section").as[String],
+          dailyReportTitle = (item \ "daily_report" \ "title").as[String],
+          hiCoreProject = (item \ "hicore" \ "project").as[String],
+          hiCoreProcess = (item \ "hicore" \ "process").as[String],
+          isSingle = (item \ "is_single").as[Boolean],
+        )
+      }
+    }.toList
   }
 
   val IS_DEBUG = System.getenv("IS_DEBUG") match {
@@ -131,12 +150,12 @@ object Main extends App {
   val filteredActions = getFilteredActions(actions, TRELLO_BOARD_NAME, currentDateString)
 
   val DICTIONARY_PATH = if (IS_DEBUG) "dictionary_debug.json" else "dictionary.json"
-  val dict: JsArray = getConverter(DICTIONARY_PATH)
+  val userDefinedDictionary = getConverter(DICTIONARY_PATH)
 
-  val itemList = dict.as[JsArray].value.map {
+  val itemList = userDefinedDictionary.map {
     item => {
       val actions = filteredActions.filter {
-        action => action.title == (item \ "trello" \ "title").as[String]
+        action => item.trelloTitles.contains(action.title)
       }
       val spentRaw = actions.foldLeft(0.0)((x, y) => x + y.spent)
       val spentFixed = scala.math.ceil(spentRaw / 0.25) * 0.25
@@ -145,14 +164,14 @@ object Main extends App {
       }.distinct
 
       new TrelloTask(
-        section = (item \ "daily_report" \ "section").as[String],
-        title = (item \ "daily_report" \ "title").as[String],
-        isSingle = (item \ "is_single").as[Boolean],
+        section = item.dailyReportSection,
+        title = item.dailyReportTitle,
+        isSingle = item.isSingle,
         spent = spentFixed,
         actions = tasks,
       )
     }
-  }.toList
+  }
 
   val offsetItemList = itemList.:+(new TrelloTask(
     section = "その他",
@@ -186,9 +205,9 @@ object Main extends App {
     }
   }
 
-  val sectionList = dict.value.map {
-    section => (section \ "daily_report" \ "section").as[String]
-  }.toSet.toList
+  val sectionList = userDefinedDictionary.map {
+    section => section.dailyReportSection
+  }.distinct
   val buildItemList = sectionList.map {
     sectionName =>
       new Section(
