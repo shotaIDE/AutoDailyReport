@@ -61,7 +61,7 @@ object Main extends App {
   }
 
   val TRELLO_COMMENT_BY_PLUS = new Regex(
-    """plus! (\d+(\.\d+)?)/(\d+(\.\d+)?) (.*)""",
+    """plus! (\d+(\.\d+)?)/(\d+(\.\d+)?) ?(.*)""",
     "spentMin", "spentMilli", "estimatedMin", "estimatedMilliMin", "comment"
   )
 
