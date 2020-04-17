@@ -24,6 +24,26 @@
             "request": "launch",
             "program": "${workspaceFolder}/overtimetohicore.py",
             "console": "integratedTerminal"
+        },
+        {
+            "name": "Python: Run Stamp For Start To Hi-Core",
+            "type": "python",
+            "request": "launch",
+            "program": "${workspaceFolder}/stamptohicore.py",
+            "console": "integratedTerminal",
+            "args": [
+                "start"
+            ]
+        },
+        {
+            "name": "Python: Run Stamp For End To Hi-Core",
+            "type": "python",
+            "request": "launch",
+            "program": "${workspaceFolder}/stamptohicore.py",
+            "console": "integratedTerminal",
+            "args": [
+                "end"
+            ]
         }
     ]
 }
