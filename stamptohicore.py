@@ -64,10 +64,7 @@ def main():
     else:
         browser.find_element_by_xpath('//input[@value="退　勤"]').click()
 
-    wait_for_page_loaded(browser=browser)
-
-    switch_to_content_frame(browser=browser)
-
+    # ページ遷移なしのため、すぐにボタンをクリックする
     browser.find_element_by_xpath('//input[@value="登　録"]').click()
 
     browser.quit()
